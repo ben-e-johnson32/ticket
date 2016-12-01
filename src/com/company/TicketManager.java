@@ -6,14 +6,17 @@ public class TicketManager {
 
     public static void main(String[] args) {
 
-        LinkedList<Ticket> ticketQueue = new LinkedList<Ticket>();
+        // One list for unresolved tickets, one for resolved tickets.
+        LinkedList<Ticket> ticketQueue = new LinkedList<>();
+        LinkedList<Ticket> resolvedTickets = new LinkedList<>();
 
         Scanner scan = new Scanner(System.in);
 
         while(true){
 
-            System.out.println("1. Enter Ticket\n2. Delete Ticket\n3. Display All Tickets\n4. Quit");
-            int task = Integer.parseInt(scan.nextLine());
+            System.out.println("1. Enter Ticket\n2. Delete Ticket by ID\n3. Delete Ticket by Issue\n4. Find Ticket " +
+                    "by Reporter\n5. Display All Tickets\n6. View Resolved Tickets\n7. Quit");
+            Integer task = Integer.parseInt(scan.next());
 
             if (task == 1) {
                 //Call addTickets, which will let us enter any number of new tickets
@@ -21,9 +24,32 @@ public class TicketManager {
 
             } else if (task == 2) {
                 //delete a ticket
-                deleteTicket(ticketQueue);
+                // Takes two new arguments - one for a list of matching tickets for a search term, and the list of
+                // resolved tickets we'll add to once we delete the ticket.
+                deleteTicket(ticketQueue, null, resolvedTickets);
 
-            } else if ( task == 4 ) {
+            } else if (task == 3) {
+                // Ask for the search term and find all matching tickets, then delete from those options.
+                System.out.println("Enter the search term:");
+                LinkedList<Ticket> matchingTickets = searchDescriptions(ticketQueue);
+                deleteTicket(ticketQueue, matchingTickets, resolvedTickets);
+
+            } else if (task == 4) {
+                // Just displays a list of all tickets opened by a certain employee.
+                System.out.println("Enter the name of the reporter:");
+                LinkedList<Ticket> matchingTickets = searchByName(ticketQueue);
+                printAllTickets(matchingTickets);
+
+            } else if (task == 5) {
+                // Display all the unresolved tickets.
+                printAllTickets(ticketQueue);
+
+            } else if (task == 6) {
+                // Display all the resolved tickets.
+                printAllTickets(resolvedTickets);
+            }
+
+            else if ( task == 7 ) {
                 //Quit. Future prototype may want to save all tickets to a file
                 System.out.println("Quitting program");
                 break;
@@ -35,13 +61,19 @@ public class TicketManager {
                 printAllTickets(ticketQueue);
             }
         }
-
-        scan.close();
-
     }
 
-    protected static void deleteTicket(LinkedList<Ticket> ticketQueue) {
-        printAllTickets(ticketQueue);   //display list for user
+    protected static void deleteTicket(LinkedList<Ticket> ticketQueue, LinkedList<Ticket> matchingTickets,
+                                       LinkedList<Ticket> resolvedTickets) {
+        if (matchingTickets == null)
+        {
+            printAllTickets(ticketQueue);   // If there's no list of matching tickets, display all unresolved tickets.
+        }
+
+        else
+        {
+            printAllTickets(matchingTickets); // Display the list of matching tickets.
+        }
 
         if (ticketQueue.size() == 0) {    //no tickets!
             System.out.println("No tickets to delete!\n");
@@ -49,25 +81,58 @@ public class TicketManager {
         }
 
         Scanner deleteScanner = new Scanner(System.in);
-        System.out.println("Enter ID of ticket to delete");
-        int deleteID = deleteScanner.nextInt();
+        Scanner resScanner = new Scanner(System.in);
 
         //Loop over all tickets. Delete the one with this ticket ID
-        boolean found = false;
-        for (Ticket ticket : ticketQueue) {
-            if (ticket.getTicketID() == deleteID) {
-                found = true;
-                ticketQueue.remove(ticket);
-                System.out.println(String.format("Ticket %d deleted", deleteID));
-                break; //don't need loop any more.
+        outer: while (true)
+        {
+            System.out.println("Enter ID of ticket to delete");
+            int deleteIDint;
+            String deleteID = deleteScanner.next();
+
+            try
+            {
+                // Make sure the input is an integer.
+                deleteIDint = Integer.parseInt(deleteID);
             }
-        }
-        if (!found) {
-            System.out.println("Ticket ID not found, no ticket deleted");
-            //TODO – re-write this method to ask for ID again if not found
+
+            catch (NumberFormatException nfe)
+            {
+                // If not, display a message and restart the while true loop.
+                System.out.println("Enter an integer value.");
+                continue outer;
+            }
+
+            boolean found = false;
+            for (Ticket ticket : ticketQueue)
+            {
+                // Loop through all tickets looking for one with a matching ID.
+                if (ticket.getTicketID() == deleteIDint)
+                {
+                    // When found, remove the ticket from the ticketQueue.
+                    found = true;
+                    ticketQueue.remove(ticket);
+                    // Prompt the user to enter a reason for closing.
+                    System.out.println("Enter the reason for the ticket being closed:");
+                    String res = resScanner.nextLine();
+                    // Create a new ResolvedTicket object and add it to the list of resolved tickets.
+                    ResolvedTicket rt = new ResolvedTicket(ticket.getDescription(), ticket.getPriority(),
+                            ticket.getReporter(), ticket.getDateReported(), ticket.getTicketID(), res);
+                    resolvedTickets.add(rt);
+                    System.out.println(String.format("Ticket %d deleted", deleteIDint));
+                    break; //don't need loop any more.
+                }
+            }
+            if (!found)
+            {
+                // If the ID was not found, restart the while true loop.
+                System.out.println("Ticket ID not found, no ticket deleted");
+                continue outer;
+            }
+
+            break;
         }
         printAllTickets(ticketQueue);  //print updated list
-
     }
 
 
@@ -139,6 +204,44 @@ public class TicketManager {
         }
         System.out.println(" ------- End of ticket list ----------");
 
+    }
+
+    protected static LinkedList<Ticket> searchDescriptions(LinkedList<Ticket> tickets)
+    {
+        // Returns a list of tickets that match a search term.
+        LinkedList<Ticket> matchingTickets = new LinkedList<>();
+        Scanner scan = new Scanner(System.in);
+        String searchTerm = scan.nextLine();
+
+        // Loop through all unresolved tickets and add all containing the search term in their description.
+        for (Ticket t : tickets)
+        {
+            if (t.getDescription().contains(searchTerm))
+            {
+                matchingTickets.add(t);
+            }
+        }
+
+        return matchingTickets;
+    }
+
+    protected static LinkedList<Ticket> searchByName(LinkedList<Ticket> tickets)
+    {
+        // Returns a list of tickets opened by a certain employee - basically the same as the above method.
+        LinkedList<Ticket> matchingTickets = new LinkedList<>();
+        Scanner scan = new Scanner(System.in);
+        String searchTerm = scan.nextLine();
+
+
+        for (Ticket t : tickets)
+        {
+            if (t.getReporter().contains(searchTerm))
+            {
+                matchingTickets.add(t);
+            }
+        }
+
+        return matchingTickets;
     }
 }
 
